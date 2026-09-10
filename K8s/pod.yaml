@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mon-app-pod
+  labels:
+    app: mon-app
+spec:
+  containers:
+  - name: mon-app
+    image: mon-app:v1
+    ports:
+    - containerPort: 3000

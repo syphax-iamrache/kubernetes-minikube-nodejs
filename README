@@ -1,0 +1,148 @@
+# 🚀 Kubernetes Local avec Minikube — Pod, Service & Deployment
+
+Premier projet pratique de mon parcours DevOps/Cloud : déploiement d'une application Node.js sur un cluster Kubernetes local (Minikube), en explorant progressivement les objets fondamentaux de Kubernetes (Pod, Service, Deployment) et leurs mécanismes clés (auto-réparation, scaling, rolling update).
+
+## 🎯 Objectifs du projet
+
+- Comprendre le cycle de vie complet d'une application conteneurisée : code → image Docker → déploiement Kubernetes
+- Manipuler les objets Kubernetes essentiels : `Pod`, `Service`, `Deployment`
+- Expérimenter concrètement les mécanismes d'orchestration : auto-réparation, scaling horizontal, rolling update, rollback
+
+## 🏗️ Stack technique
+
+| Outil | Rôle |
+|---|---|
+| **Docker** | Construction de l'image de l'application |
+| **Minikube** | Cluster Kubernetes local (1 node) pour l'expérimentation |
+| **kubectl** | CLI de pilotage du cluster |
+| **Node.js** | Application applicative minimale (serveur HTTP) |
+
+## 📁 Structure du projet
+
+```
+kubernetes-minikube-nodejs/
+│
+├── app.js              # Application Node.js (serveur HTTP minimal)
+├── Dockerfile            # Recette de construction de l'image Docker
+├── README.md
+├── .gitignore
+├── .dockerignore
+│
+└── k8s/
+    ├── pod.yaml           # Définition d'un Pod unique (option A — pédagogique)
+    ├── deployment.yaml     # Définition d'un Deployment avec 2 replicas (option B — recommandé)
+    └── service.yaml        # Exposition réseau de l'application (NodePort)
+```
+
+> ⚠️ Les manifests `pod.yaml` et `deployment.yaml` utilisent le même label (`app: mon-app`), ciblé par le `selector` du `service.yaml`. Ils sont conservés tous les deux à titre pédagogique (comparaison Pod isolé vs Deployment), mais **ne doivent pas être appliqués simultanément** : le Service sélectionnerait alors les Pods des deux à la fois. Choisis l'option A ou l'option B ci-dessous.
+
+## 🔧 Prérequis
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- [Minikube](https://minikube.sigs.k8s.io/docs/start/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+
+## ▶️ Déploiement pas à pas
+
+### 1. Se placer dans le projet et démarrer le cluster
+
+```bash
+cd kubernetes-minikube-nodejs
+minikube start
+minikube status
+```
+
+### 2. Utiliser l'environnement Docker de Minikube
+
+Minikube embarque son propre daemon Docker, isolé de celui de la machine hôte. Cette commande redirige les builds suivants vers cet environnement, pour que les images soient directement visibles par le cluster (sans passer par un registre distant) :
+
+```bash
+eval $(minikube docker-env)
+```
+
+### 3. Construire l'image de l'application
+
+Depuis la racine du projet (le `.` désigne le dossier courant, où se trouvent `app.js` et `Dockerfile`) :
+
+```bash
+docker build -t mon-app:v2 .
+docker images | grep mon-app
+```
+
+### 4. Déployer sur Kubernetes
+
+**Option A — Pod simple** *(non résilient, à but pédagogique)*
+```bash
+kubectl apply -f k8s/pod.yaml
+kubectl apply -f k8s/service.yaml
+```
+
+**Option B — Deployment** *(recommandé — auto-réparation, scaling, rolling updates)*
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+```
+
+*(Alternative : `kubectl apply -f k8s/` applique tous les manifests du dossier en une seule commande — à utiliser uniquement si un seul des deux, Pod ou Deployment, est présent dans le dossier à ce moment-là.)*
+
+### 5. Vérifier le déploiement
+
+```bash
+kubectl get pods
+kubectl get deployments
+kubectl get svc
+```
+
+### 6. Accéder à l'application
+
+```bash
+minikube service mon-app-service --url
+```
+
+## 🧪 Expérimentations réalisées
+
+### Auto-réparation (self-healing)
+Suppression manuelle d'un Pod et observation de sa recréation automatique par le Deployment :
+```bash
+kubectl delete pod <nom-du-pod>
+kubectl get pods    # un nouveau Pod apparaît automatiquement
+```
+
+### Scaling horizontal
+Passage de 2 à 5 replicas à chaud :
+```bash
+kubectl scale deployment mon-app-deployment --replicas=5
+kubectl get pods
+```
+
+### Rolling update
+Modification du code applicatif (`v1` → `v2`), reconstruction de l'image, puis mise à jour progressive du Deployment sans interruption de service :
+```bash
+docker build -t mon-app:v2 .
+kubectl apply -f k8s/deployment.yaml     # avec image: mon-app:v2 dans le fichier
+kubectl rollout status deployment mon-app-deployment
+kubectl get pods -w                      # observation en temps réel du remplacement des Pods
+```
+
+### Rollback
+Retour instantané à la version précédente en cas de problème :
+```bash
+kubectl rollout undo deployment mon-app-deployment
+kubectl rollout history deployment mon-app-deployment
+```
+
+## 📚 Ce que ce projet démontre
+
+- Compréhension du flux complet **code → image → cluster** et du rôle de chaque composant (kubelet, kube-proxy, container runtime)
+- Différence pratique entre un **Pod isolé** (fragile) et un **Deployment** (résilient, scalable)
+- Maîtrise des commandes `kubectl` essentielles au quotidien d'un ingénieur DevOps
+- Compréhension du modèle déclaratif de Kubernetes (état désiré vs état réel) et de la réconciliation automatique
+- Organisation d'un dépôt Kubernetes selon une convention courante en entreprise (séparation code applicatif / manifests dans `k8s/`)
+
+## 🔜 Prochaine étape
+
+Ce projet pose les bases pour une architecture plus réaliste : une application **multi-services** (API + base de données + reverse proxy) dockerisée avec Docker Compose, avant un futur déploiement sur un cluster Kubernetes managé (Amazon EKS).
+
+---
+
+*Projet réalisé dans le cadre de mon parcours d'auto-formation DevOps/Cloud (M2 Ingénierie des Réseaux et Systèmes).*
